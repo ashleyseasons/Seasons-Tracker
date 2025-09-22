@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyclical Weight Loss – Season Tracker (14–10–4) • v3</title>
+<style>
+  :root {
+    --bg:#f7f7fb; --card:#ffffff; --ink:#222; --muted:#666; --accent:#4b79ff; --border:#e7e7ef;
+    --prime-bg:#e9f8eb; --prime-ink:#0e6b2f; --prime-bd:#bfe5c2;
+    --maint-bg:#fff6e5; --maint-ink:#885400; --maint-bd:#f4d7a7;
+    --reset-bg:#f3f3f3; --reset-ink:#5b5b5b; --reset-bd:#dadada;
+    --done:#2e7d32; --partial:#d35400; --progress:#7f6000; --skipped:#777; --ghost:#b5b5b5;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{position:sticky;top:0;background:var(--bg);padding:12px 16px;border-bottom:1px solid var(--border);z-index:10}
+  h1{font-size:18px;margin:0 0 6px}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .help{font-size:12px;color:var(--muted)}
+  select,button,input[type="date"],input[type="number"],input[type="text"],textarea{font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+  input[type="number"]{width:110px}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.ghost{background:transparent}
+  main{padding:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 12px 10px;margin-bottom:12px;box-shadow:0 1px 0 rgba(0,0,0,.02)}
+  .day-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+  .phase{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .phase.PRIME{color:var(--prime-ink);border-color:var(--prime-bd);background:var(--prime-bg)}
+  .phase.MAINTAIN{color:var(--maint-ink);border-color:var(--maint-bd);background:var(--maint-bg)}
+  .phase.RESET{color:var(--reset-ink);border-color:var(--reset-bd);background:var(--reset-bg)}
+  .sections{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}
+  .check{display:flex;gap:6px;align-items:center;font-size:14px}
+  .check input{width:18px;height:18px}
+  .note{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .pill{font-size:11px;border:1px dashed var(--border);padding:4px 8px;border-radius:999px;color:#333;background:#fafafa}
+  .subgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  .section{border:1px dashed var(--border);border-radius:12px;padding:8px}
+  .section h3{margin:0 0 8px;font-size:12px;letter-spacing:.2px;text-transform:uppercase;color:var(--muted)}
+  .primeTone{background:var(--prime-bg);border-color:var(--prime-bd)}
+  .maintTone{background:var(--maint-bg);border-color:var(--maint-bd)}
+  .resetTone{background:var(--reset-bg);border-color:var(--reset-bd)}
+  .badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border)}
+  .badge.good{background:#e9f8eb;color:var(--prime-ink);border-color:#cbe9d0}
+  .badge.warn{background:#fff6e5;color:#8a5a00;border-color:#f4d7a7}
+  .badge.neut{background:#f3f3f3;color:#555;border-color:#ddd}
+  .queststatus{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);display:inline-block}
+  .qDone{background:#e6f4ea;color:var(--done);border-color:#c8e6c9}
+  .qPartial{background:#fde9dd;color:var(--partial);border-color:#f7c8a7}
+  .qProg{background:#fff2cc;color:var(--progress);border-color:#f7df92}
+  .qSkip{background:#efefef;color:var(--skipped);border-color:#e0e0e0}
+  footer{padding:12px 16px 24px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Season Tracker (14–10–4) • v3</h1>
+  <div class="row">
+    <label class="small">Season Start:
+      <input type="date" id="startDate">
+    </label>
+    <label class="small">Default Calories:
+      <input type="number" id="defaultCals" min="0" step="10" placeholder="e.g. 1900">
+    </label>
+    <button id="resetSeason" class="ghost">Clear All</button>
+    <button id="exportBtn">Export</button>
+    <button id="importBtn" class="ghost">Import</button>
+    <button id="installBtn" class="primary" style="display:none">Install</button>
+  </div>
+</header>
+<main id="list"></main>
+<footer>
+  Tip: On iPhone Safari, tap <em>Share → Add to Home Screen</em> to use this like an app.
+</footer>
+<script>
+const focuses={PRIME:["Protein — 100g+","Steps — 7k+ or 30 min movement","Bedtime — lights out by midnight"],MAINTAIN:"Protein anchor + Cap habit + Photo journal",RESET:["Mindful — slow bites (put fork down)","Mindful — hunger/fullness check","Mindful — one no-phone meal","Mindful — savor + plan next Season"]};
+const phaseByDay=(d)=>{if(d>=1&&d<=14)return"PRIME";if(d>=15&&d<=24)return"MAINTAIN";return"RESET";};
+function primeFocusForDay(d){const seq=focuses.PRIME;return seq[(d-1)%seq.length];}
+function resetFocusForDay(d){const idx=d-25;return focuses.RESET[idx]||"Mindful practice";}
+const KEY="seasonTrackerV3";function load(){try{return JSON.parse(localStorage.getItem(KEY))||{};}catch(e){return{};}}function save(data){localStorage.setItem(KEY,JSON.stringify(data));}let state=load();const list=document.getElementById('list');
+function badgeClass(r){if(r==="")return"neut";if(r>=0)return"good";return"warn";}function questBadgeClass(s){if(s==="Done")return"qDone";if(s==="Partial")return"qPartial";if(s==="In progress")return"qProg";if(s==="Skipped")return"qSkip";return"qSkip";}
+function render(){list.innerHTML="";for(let d=1;d<=28;d++){const phase=phaseByDay(d);const dayKey="day"+d;const day=state[dayKey]||{};const card=document.createElement('div');card.className="card";
+const header=document.createElement('div');header.className="day-header";header.innerHTML=`<strong>Day ${d}</strong><span class="phase ${phase}">${phase}</span>`;card.appendChild(header);
+const checks=document.createElement('div');checks.className="sections";[{k:'water',label:'Water'},{k:'sleep',label:'Sleep'},{k:'move',label:'Movement'},{k:'food',label:(phase==='PRIME'?'Log/Photo':(phase==='MAINTAIN'?'Photo (opt)':'Reflect'))}].forEach(it=>{const wrap=document.createElement('label');wrap.className="check";const cb=document.createElement('input');cb.type='checkbox';cb.checked=!!day[it.k];cb.onchange=()=>{state[dayKey]=state[dayKey]||{};state[dayKey][it.k]=cb.checked;save(state);};wrap.append(cb,document.createTextNode(it.label));checks.appendChild(wrap);});card.appendChild(checks);
+const sub=document.createElement('div');sub.className="subgrid";
+const calWrap=document.createElement('div');calWrap.className="section "+(phase==="PRIME"?"primeTone":(phase==="MAINTAIN"?"maintTone":"resetTone"));calWrap.innerHTML="<h3>Calories</h3>";const calsTarget=document.createElement('input');calsTarget.type="number";calsTarget.placeholder="Target";calsTarget.value=(day.calsTarget??state.defaultCals??"");calsTarget.oninput=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].calsTarget=(calsTarget.value===""?"":Number(calsTarget.value));save(state);updateRem();};const calsConsumed=document.createElement('input');calsConsumed.type="number";calsConsumed.placeholder="Consumed";calsConsumed.value=(day.calsConsumed??"");calsConsumed.oninput=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].calsConsumed=(calsConsumed.value===""?"":Number(calsConsumed.value));save(state);updateRem();};const remain=document.createElement('span');remain.className="badge neut";function updateRem(){const t=(calsTarget.value===""?"":Number(calsTarget.value));const c=(calsConsumed.value===""?"":Number(calsConsumed.value));let r="";if(t!==""&&c!==""){r=t-c;}remain.textContent=(r===""?"Remaining —":`Remaining ${r}`);remain.className="badge "+badgeClass(r===""?"":r);}updateRem();const calRow=document.createElement('div');calRow.className="row";calRow.append(calsTarget,calsConsumed,remain);calWrap.appendChild(calRow);const prot=document.createElement('input');prot.type="number";prot.placeholder="Protein (g)";prot.value=(day.protein??"");prot.oninput=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].protein=(prot.value===""?"":Number(prot.value));save(state);};const protRow=document.createElement('div');protRow.className="row";protRow.appendChild(prot);calWrap.appendChild(protRow);sub.appendChild(calWrap);
+const qWrap=document.createElement('div');qWrap.className="section";let questTitle="";if(phase==="PRIME")questTitle=primeFocusForDay(d);else if(phase==="MAINTAIN")questTitle=focuses.MAINTAIN;else questTitle=resetFocusForDay(d);qWrap.innerHTML=`<h3>Quest — ${questTitle}</h3>`;const qStatus=document.createElement('select');["Not started","In progress","Partial","Done","Skipped"].forEach(opt=>{let o=document.createElement('option');o.value=opt;o.textContent=opt;qStatus.appendChild(o);});qStatus.value=day.questStatus||"Not started";const qBadge=document.createElement('span');qBadge.className="queststatus "+questBadgeClass(qStatus.value);qBadge.textContent=qStatus.value;qStatus.onchange=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].questStatus=qStatus.value;qBadge.textContent=qStatus.value;qBadge.className="queststatus "+questBadgeClass(qStatus.value);save(state);};const qRow=document.createElement('div');qRow.className="row";qRow.append(qStatus,qBadge);qWrap.appendChild(qRow);const qToggles=document.createElement('div');qToggles.className="toolbar";const doneBtn=document.createElement('button');doneBtn.textContent="Mark Done";doneBtn.className="primary";const partialBtn=document.createElement('button');partialBtn.textContent="Mark Partial";partialBtn.className="ghost";const skipBtn=document.createElement('button');skipBtn.textContent="Skip";skipBtn.className="ghost";[doneBtn,partialBtn,skipBtn].forEach(btn=>btn.style.padding="6px 10px");doneBtn.onclick=()=>{qStatus.value="Done";qStatus.dispatchEvent(new Event('change'));};partialBtn.onclick=()=>{qStatus.value="Partial";qStatus.dispatchEvent(new Event('change'));};skipBtn.onclick=()=>{qStatus.value="Skipped";qStatus.dispatchEvent(new Event('change'));};qToggles.append(doneBtn,partialBtn,skipBtn);qWrap.appendChild(qToggles);const qNote=document.createElement('textarea');qNote.className="note";qNote.rows=2;qNote.placeholder="What did you complete (or partially complete) today?";qNote.value=day.questNotes||"";qNote.oninput=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].questNotes=qNote.value;save(state);};qWrap.appendChild(qNote);sub.appendChild(qWrap);card.appendChild(sub);
+if(phase==='MAINTAIN'){const row=document.createElement('div');row.className='toolbar';row.innerHTML=`<span class="pill">Maintenance cals / plate method</span><span class="pill">Protein ~80–100g</span><span class="pill">Cap habit</span><span class="pill">Photo journal</span>`;card.appendChild(row);}if(phase==='RESET'){const row=document.createElement('div');row.className='toolbar';row.innerHTML=`<span class="pill">Mindful practice of the day</span><span class="pill">No deficit</span>`;card.appendChild(row);}const note=document.createElement('textarea');note.className="note";note.rows=2;note.placeholder=(phase==='PRIME'?"Win of the day, meal notes…":(phase==='MAINTAIN'?"One easy healthy choice, reflections…":"Mindful reflection, plan notes…"));note.value=day.note||"";note.oninput=()=>{state[dayKey]=state[dayKey]||{};state[dayKey].note=note.value;save(state);};card.appendChild(note);
+list.appendChild(card);}document.getElementById('startDate').value=state.startDate||"";document.getElementById('defaultCals').value=state.defaultCals??"";}
+render();document.getElementById('startDate').onchange=(e)=>{state.startDate=e.target.value;save(state);};document.getElementById('defaultCals').oninput=(e)=>{state.defaultCals=(e.target.value===""?"":Number(e.target.value));save(state);};document.getElementById('resetSeason').onclick=()=>{if(confirm('Clear all checkboxes and notes for this Season?')){state={startDate:state.startDate||"",defaultCals:state.defaultCals??""};save(state);render();}};document.getElementById('exportBtn').onclick=()=>{const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='season-tracker-export-v3.json';a.click();URL.revokeObjectURL(url);};document.getElementById('importBtn').onclick=()=>{const inp=document.createElement('input');inp.type='file';inp.accept='application/json';inp.onchange=(e)=>{const file=e.target.files[0];if(!file)return;const reader=new FileReader();reader.onload=()=>{try{state=JSON.parse(reader.result);save(state);render();}catch(err){alert('Invalid file');}};reader.readAsText(file);};inp.click();};
+</script>
+</body>
+</html>
