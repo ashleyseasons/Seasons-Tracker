@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cyclical Weight Loss – Season 1 Tracker (14–10–4)</title>
+<style>
+  :root { --bg:#f7f7fb; --card:#ffffff; --ink:#222; --muted:#666; --accent:#4b79ff; --border:#e7e7ef; }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;}
+  header{position:sticky;top:0;background:var(--bg);padding:12px 16px;border-bottom:1px solid var(--border);z-index:10;}
+  h1{font-size:18px;margin:0 0 6px;}
+  .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  select,button,input[type="date"]{font-size:14px;padding:8px 10px;border:1px solid var(--border);border-radius:10px;background:var(--card)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:white}
+  button.ghost{background:transparent}
+  main{padding:14px}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:12px 12px 10px;margin-bottom:10px;box-shadow:0 1px 0 rgba(0,0,0,0.02)}
+  .day-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+  .phase{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--border);color:var(--muted)}
+  .phase.PRIME{color:#0e6b2f;border-color:#bfe5c2;background:#e9f8eb}
+  .phase.MAINTAIN{color:#885400;border-color:#f4d7a7;background:#fff6e5}
+  .phase.RESET{color:#5b5b5b;border-color:#dadada;background:#f3f3f3}
+  .grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:8px 0}
+  .check{display:flex;gap:6px;align-items:center;font-size:14px}
+  .check input{width:18px;height:18px}
+  .note{width:100%;box-sizing:border-box;padding:8px;border:1px solid var(--border);border-radius:10px;font-size:14px;background:#fff}
+  .focus{font-size:13px;color:var(--muted)}
+  .small{font-size:12px;color:var(--muted)}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .pill{font-size:11px;border:1px dashed var(--border);padding:4px 8px;border-radius:999px;color:#333;background:#fafafa}
+  footer{padding:12px 16px 24px;color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Season Tracker (14–10–4)</h1>
+  <div class="row">
+    <label class="small">Season Start:
+      <input type="date" id="startDate">
+    </label>
+    <button id="resetSeason" class="ghost">Clear All</button>
+    <button id="exportBtn">Export</button>
+    <button id="importBtn" class="ghost">Import</button>
+    <button id="installBtn" class="primary" style="display:none">Install</button>
+  </div>
+  <div class="small">Prime = deficit + quest • Maintain = maintenance + protein + cap habit + photo • Reset = mindful eating practice</div>
+</header>
+<main id="list"></main>
+<footer>
+  Pro tip: On iPhone Safari, tap <em>Share → Add to Home Screen</em> to use this like an app. Your data stays on your device.
+</footer>
+
+<script>
+// --- Phase & focus text ---
+const focuses = {
+  PRIME: [
+    "Protein Quest (100g+)",
+    "Steps Quest (7k+ / 30 min)",
+    "Bedtime Quest (lights out by midnight)",
+  ],
+  MAINTAIN: "Protein anchor + Cap habit + Photo journal",
+  RESET: [
+    "Mindful: slow bites (put fork down between bites)",
+    "Mindful: hunger/fullness scale (before/after)",
+    "Mindful: one no‑phone meal",
+    "Mindful: savor challenge + Plan next Season"
+  ]
+};
+
+const phaseByDay = (d) => {
+  if (d >= 1 && d <= 14) return "PRIME";
+  if (d >= 15 && d <= 24) return "MAINTAIN";
+  return "RESET"; // 25-28
+};
+
+// rotating quests for Prime (Protein→Steps→Bedtime repeating)
+function primeFocusForDay(d){
+  const seq = focuses.PRIME;
+  return seq[(d-1)%seq.length];
+}
+
+function resetFocusForDay(d){
+  const idx = d-25;
+  return focuses.RESET[idx] || "Mindful practice";
+}
+
+// --- Storage helpers ---
+const KEY = "seasonTrackerV1";
+function load(){
+  try { return JSON.parse(localStorage.getItem(KEY)) || {}; } catch(e){ return {}; }
+}
+function save(data){
+  localStorage.setItem(KEY, JSON.stringify(data));
+}
+let state = load();
+
+// --- Build list ---
+const list = document.getElementById('list');
+function render(){
+  list.innerHTML = "";
+  for (let d=1; d<=28; d++){
+    const phase = phaseByDay(d);
+    const card = document.createElement('div');
+    card.className = "card";
+    const dayKey = "day"+d;
+    const day = state[dayKey] || {};
+    const header = document.createElement('div');
+    header.className = "day-header";
+    const title = document.createElement('div');
+    title.innerHTML = `<strong>Day ${d}</strong> <span class="focus">• ${phase==='PRIME' ? primeFocusForDay(d) : (phase==='MAINTAIN' ? focuses.MAINTAIN : resetFocusForDay(d))}</span>`;
+    const badge = document.createElement('span');
+    badge.className = "phase " + phase;
+    badge.textContent = phase;
+    header.appendChild(title);
+    header.appendChild(badge);
+    card.appendChild(header);
+
+    // checkbox grid
+    const grid = document.createElement('div');
+    grid.className = "grid";
+    const items = [
+      {k:'water', label:'Water'},
+      {k:'sleep', label:'Sleep'},
+      {k:'move', label:'Movement'},
+      {k:'food', label: (phase==='PRIME' ? 'Log/Photo' : (phase==='MAINTAIN' ? 'Photo (opt)' : 'Reflect'))}
+    ];
+    items.forEach(it=>{
+      const wrap = document.createElement('label');
+      wrap.className = "check";
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = !!day[it.k];
+      cb.addEventListener('change', () => {
+        state[dayKey] = state[dayKey] || {};
+        state[dayKey][it.k] = cb.checked;
+        save(state);
+      });
+      const span = document.createElement('span');
+      span.textContent = it.label;
+      wrap.appendChild(cb);
+      wrap.appendChild(span);
+      grid.appendChild(wrap);
+    });
+    card.appendChild(grid);
+
+    // anchors / caps for Maintain
+    if (phase === 'MAINTAIN'){
+      const row = document.createElement('div');
+      row.className = 'toolbar';
+      row.innerHTML = `<span class="pill">Maintenance cals (or plate method)</span>
+                       <span class="pill">Protein ~80–100g</span>
+                       <span class="pill">Cap habit (1 treat / 80% full / no late eating)</span>`;
+      card.appendChild(row);
+    }
+
+    // mindful prompts for Reset
+    if (phase === 'RESET'){
+      const row = document.createElement('div');
+      row.className = 'toolbar';
+      row.innerHTML = `<span class="pill">Mindful practice of the day</span>
+                       <span class="pill">No tracking or deficit</span>`;
+      card.appendChild(row);
+    }
+
+    // notes
+    const note = document.createElement('textarea');
+    note.className = "note";
+    note.rows = 2;
+    note.placeholder = (phase==='PRIME' ? "Win of the day, meal notes…" :
+                         phase==='MAINTAIN' ? "One easy healthy choice, reflections…" :
+                         "Mindful eating reflection, plan notes…");
+    note.value = day.note || "";
+    note.addEventListener('input', ()=>{
+      state[dayKey] = state[dayKey] || {};
+      state[dayKey].note = note.value;
+      save(state);
+    });
+    card.appendChild(note);
+
+    list.appendChild(card);
+  }
+  // season start date
+  const start = document.getElementById('startDate');
+  start.value = state.startDate || "";
+}
+
+render();
+
+// Start date control
+document.getElementById('startDate').addEventListener('change', (e)=>{
+  state.startDate = e.target.value;
+  save(state);
+});
+
+// Clear
+document.getElementById('resetSeason').addEventListener('click', ()=>{
+  if (confirm('Clear all checkboxes and notes for this Season?')){
+    state = { startDate: state.startDate || "" };
+    save(state);
+    render();
+  }
+});
+
+// Export / Import
+document.getElementById('exportBtn').addEventListener('click', ()=>{
+  const blob = new Blob([JSON.stringify(state, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'season-tracker-export.json';
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = 'application/json';
+  inp.onchange = (e)=>{
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=>{
+      try{
+        const data = JSON.parse(reader.result);
+        state = data;
+        save(state);
+        render();
+      }catch(err){
+        alert('Invalid file');
+      }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+});
+
+// Install prompt for PWA (basic)
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredPrompt = e;
+  document.getElementById('installBtn').style.display = 'inline-block';
+});
+document.getElementById('installBtn').addEventListener('click', async ()=>{
+  if (deferredPrompt){
+    deferredPrompt.prompt();
+    await deferredPrompt.userChoice;
+    deferredPrompt = null;
+    document.getElementById('installBtn').style.display = 'none';
+  } else {
+    alert('On iPhone, use Share → Add to Home Screen.');
+  }
+});
+</script>
+</body>
+</html>
